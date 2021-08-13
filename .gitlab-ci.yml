@@ -1,0 +1,65 @@
+image: node:14.15-alpine3.10
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+
+variables:
+  NODE_CACHE_DIR: $CI_PROJECT_DIR/node_modules/
+  GITLAB_AUTH_TOKEN: $CI_JOB_TOKEN
+
+stages:
+  - prepare
+  - test
+  - publish
+
+.cache_config:
+  cache:
+    key:
+      files:
+        - yarn.lock
+    paths:
+      - $NODE_CACHE_DIR
+    policy: pull
+
+prepare:
+  stage: prepare
+  script:
+    - yarn install --frozen-lockfile
+  rules:
+    - changes:
+        - yarn.lock
+    - exists:
+        - node_modules
+      when: never
+  cache:
+    key:
+      files:
+        - yarn.lock
+    paths:
+      - $NODE_CACHE_DIR
+
+lint:
+  stage: test
+  extends:
+    - .cache_config
+  script:
+    - yarn lint
+
+pages:
+  stage: publish 
+  extends:
+    - .cache_config
+  tags:
+    - himem
+  script:
+    - yarn build
+    - rm -rf public
+    - cp -r out public
+  artifacts:
+    paths:
+      - public
